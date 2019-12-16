@@ -1,0 +1,345 @@
+{% extends "events/base.html" %}
+
+{% block content%}
+
+<script>
+    var venueArrayObject ;
+
+    $( document ).ready(function() {
+        $("#btn_Display").click(function () {
+            //alert("loooolool");
+            jQuery.ajax({
+                url: '{% url "getResrvedLocationsByDay" %}'
+                , data: {
+                    'day': selectedDate
+                    //'day': $("#day").val()
+                }
+                , type : "GET"
+                , dataType: 'json'
+                , success: function (venueArray) {
+                    //venueArray = JSON.parse(data);
+                    venueArrayObject = venueArray;
+                    drawTable(venueArray);
+                }
+                , error(errorDetails, errorText){
+                    alert(errorDetails.responseText);
+                }
+            });
+            return false;
+        });
+
+        $("#btn_Reserve").click(function () {
+            //var eventId = prompt("Please enter your Event ID ", "4")            
+            var eventId = $("#reserveForEventId").val()
+            $("#booknowModalCenter").modal('hide');
+            cellsNeededToBeReserved = new Array();
+            for(rowIndex = 0 ; rowIndex< venueArrayObject.length; rowIndex++){
+                let currentVenueId = venueArrayObject[rowIndex].venueId;
+                let currentReservationRow = new Object();
+                var previousSlot = -1;
+                rowCheckedCells = $('input[name="chb_Reserve"][venueId="' + currentVenueId + '"]:Checked');
+                if(rowCheckedCells.length > 0){
+                    rowCheckedCells.each(function () {
+                        cellSlot = parseInt($(this).val()); //Current Slot
+                        if(cellSlot - previousSlot > 1){ //Check if this slot should belong to the TimeSlots
+                            if(previousSlot != -1) {
+                                cellsNeededToBeReserved.push(currentReservationRow);
+                                currentReservationRow = new Object();
+                            }
+                            currentReservationRow.start_timeslot = cellSlot;
+                            currentReservationRow.venueId = currentVenueId;
+                            currentReservationRow.reserved_timeslots = 1;
+                        }else{
+                            currentReservationRow.reserved_timeslots++ ;
+                        }
+                        previousSlot = cellSlot;
+                    });
+                    cellsNeededToBeReserved.push(currentReservationRow);
+                }
+                //cellsNeededToBeReserved[currentVenueId] = '';
+
+            }
+            addReservedSlotsToEvent(cellsNeededToBeReserved, eventId);
+            return false;
+        });
+
+        $("#btn_createEvent").click(function () {
+            //alert("loooolool");
+            jQuery.ajax({
+                url: '{% url "createEvent" %}'
+                , data: {
+                    'event-name': $("#event-name").val(),
+                    'event-details': $("#event-details").val(),
+                    'event-cert': $("#checkbox").val(),
+                    'event-category': $("#event-category").val(),
+                    'event-organizer': $("#event-organizer").val(),
+                }
+                , type : "GET"
+                , dataType: 'json'
+                , success: function (lastCreatedEvent_serialized) {
+                    //alert(lastCreatedEvent_serialized)
+                    let lastCreatedEvent = JSON.parse(lastCreatedEvent_serialized)[0];
+                    let lastEvent = JSON.parse(lastCreatedEvent_serialized)[0].fields;
+                    $("#createeventModalCenter").modal('hide');
+                    let lastCreatedEventId = lastCreatedEvent.pk
+                    let lastCreatedEventName = lastEvent.name
+                    $('#event-name').val('');
+                    $('#event-details').val('');
+                    
+                    $('#reserveForEventId').prepend(
+                        $('<option></option>').val(lastCreatedEventId).html(lastCreatedEventName)
+                    );
+                    
+                }
+                , error(errorDetails, errorText){
+                    alert(errorDetails.responseText);
+                }
+            });
+            return false;
+        });
+
+        //Display time slots table - datechanger.js
+        formatDateAndDisplay($("#dateinput"));
+        
+    });
+
+    function addReservedSlotsToEvent(cellsNeededToBeReserved, eventId){
+        jQuery.ajax({
+                url: '{% url "insertReservedSlotsToEvent" %}'
+                , data: {
+                    //'day': $("#day").val()
+                    'day': selectedDate
+                    , 'eventId': eventId
+                    , 'cellsNeededToBeReserved': JSON.stringify(cellsNeededToBeReserved)
+                }
+                , type : "GET"
+                , dataType: 'json'
+                , contentType: 'application/json'
+                , success: function (venueArray) {
+                    //venueArray = JSON.parse(data);
+                    venueArrayObject = venueArray;
+                    drawTable(venueArray);
+                }
+                , error(errorDetails, errorText){
+                    alert(errorDetails.responseText);
+                }
+            });
+
+    }
+
+    var currentRowCell = 1;
+    function getCreatedEmptyCells(venueId ,  numberOfContigousEmptyCells){
+        let emptyCells = '';
+        for(i = 0; i< numberOfContigousEmptyCells ; i++){
+            emptyCells += '<td  class="bg-success" > <input type="checkbox" class="btn btn-primary form-control" name="chb_Reserve" venueId="' + venueId + '" value="' + currentRowCell + '"></input> </td>';
+            currentRowCell++;
+        }
+        return emptyCells;
+    }
+
+
+    function drawTable(venueArray){
+        //let currentVenue = '';
+        let rowHtml = '';
+        let maxRowCells = 9;
+        for(rowIndex = 0 ; rowIndex< venueArray.length; rowIndex++){
+            currentRowCell = 1;
+            let venueObject = venueArray[rowIndex];
+            rowHtml += '<tr><th>' + venueObject.location + '</th>';
+            for(venueSlotIndex = 0; venueSlotIndex < venueObject['venueSlots'].length; venueSlotIndex++){
+                if(venueObject['venueSlots'][venueSlotIndex].start_timeslot > currentRowCell){
+                    rowHtml += getCreatedEmptyCells(venueObject.venueId, venueObject['venueSlots'][venueSlotIndex].start_timeslot - currentRowCell )
+                }
+                rowHtml += '<td  class="text-center bg-danger" colspan="' + venueObject['venueSlots'][venueSlotIndex].reserved_timeslots + '">'+ '<h4><a class="badge badge-light" href = "/' + venueObject['venueSlots'][venueSlotIndex].eventPk +'/attendees">' + venueObject['venueSlots'][venueSlotIndex].eventName +'</a></h4></td>';
+                currentRowCell += venueObject['venueSlots'][venueSlotIndex].reserved_timeslots;
+            }
+            rowHtml += getCreatedEmptyCells(venueObject.venueId, maxRowCells - currentRowCell + 1 )
+
+            rowHtml += '</tr>';
+        }
+
+
+        $('#tbl_reserveBody').html(rowHtml);
+        return false;
+    }
+
+    
+
+  </script>
+
+<div class="container">
+  <div class="row">
+    <div class="col-lg-12">
+
+        <form >
+            <div class="row">
+            <div class="col-lg-4">
+            <h4>1 - Display Events by Date</h4>
+                    <hr/>
+                    <div class="date-picker"  data-date="2014-02-03">
+                        <div class="date-container d-flex text-center justify-content-between">
+                            <h4 class="date">
+                                <button data-toggle="datepicker" data-method="subtract" data-type="d" class="btn btn-primary fa fa-angle-up"></button>
+                                <span class="text">17th</span>
+                                <button data-toggle="datepicker" data-method="add" data-type="d" class="btn btn-primary fa fa-angle-down"></button>
+                            </h4>
+                            <h4 class="month">
+                                <button data-toggle="datepicker" data-method="subtract" data-type="M" class="btn btn-primary fa fa-angle-up"></button>
+                                <span class="text">December</span>
+                                <button data-toggle="datepicker" data-method="add" data-type="M" class="btn btn-primary fa fa-angle-down"></button>
+                            </h4>
+                            <h4 class="year">
+                                <button data-toggle="datepicker" data-method="subtract" data-type="y" class="btn btn-primary fa fa-angle-up"></button>
+                                <span class="text">2014</span>
+                                <button data-toggle="datepicker" data-method="add" data-type="y" class="btn btn-primary fa fa-angle-down"></button>
+                            </h4>
+                        </div>
+                    </div>
+                    <input type="hidden" id="dateinput" name="date"></input>
+                </div>
+                <div class="col-lg-4">
+                    <h4>2 - Create Event </h4>
+                    <hr/>
+                    <p>Add event name, details, category, organizer and if you will issue a certificate for attendance.</p>
+                    <!-- Button trigger modal -->
+                    <button type="button" class="btn btn-primary btn-lg btn-block" data-toggle="modal" data-target="#createeventModalCenter">
+                            Create Event
+                    </button>
+
+                </div>
+                <div class="col-lg-4">
+                    <h4>3 - Book Hall and Time </h4>
+                    <hr/>
+                    <p>Select Free time slots from table below, then click Reserve Slots for selected Date!</p>
+                    <!-- Button trigger modal -->
+                    <button type="button" class="btn btn-primary btn-lg btn-block" data-toggle="modal" data-target="#booknowModalCenter">
+                            Reserve Slots for selected Date!
+                    </button>
+    
+                </div>
+            </div>
+                    
+        <button class="btn btn-primary text-center" id="btn_Display" style="display: none;" >Display</button>
+        </form>
+        <div class="table-responsive pt-2">
+            <table class="table table-bordered">
+                <thead class="thead-light">
+                    <tr class="text-center">
+                        <th>Location</th>
+                        <th>09:00</th>
+                        <th>10:00</th>
+                        <th>11:00</th>
+                        <th>12:00</th>
+                        <th>01:00</th>
+                        <th>02:00</th>
+                        <th>03:00</th>
+                        <th>04:00</th>
+                        <th>05:00</th>
+                    </tr>
+                </thead>
+                <tbody id="tbl_reserveBody">
+
+                </tbody>
+            </table>
+        </div>
+        
+        
+  
+  <!-- Modal Event-->
+  <div class="modal fade" id="createeventModalCenter" tabindex="-1" role="dialog" aria-labelledby="createeventModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="createeventModalLongTitle">Create Event</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+            <form>
+                <div class="form-group">
+                  <label for="recipient-name" class="col-form-label">Name:</label>
+                  <input type="text" class="form-control" id="event-name" name="event-name">
+                </div>
+                <div class="form-group">
+                  <label for="message-text" class="col-form-label">Details:</label>
+                  <textarea class="form-control" id="event-details" name="event-details"></textarea>
+                </div>
+                <span>Certificate:</span>
+                <div class="form-group">
+                    <label class="switch" for="checkbox">
+                        <input type="checkbox" id="checkbox" name="event-cert" value="0" onclick="$(this).attr('value', this.checked ? 1 : 0)"/>
+                        <div class="slider round"></div>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="category">Select Category:</label>
+                    <select class="form-control" id="event-category">
+                        {% for category in categories%}
+                        <option value="{{category.id}}">{{category.name}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="organizer">Select Organizer:</label>
+                    <select class="form-control" id="event-organizer">
+                        {% for organizer in organizers %}
+                        <option value="{{organizer.id}}">{{organizer.name}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" id="btn_createEvent">Create Event</button>
+        </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Book -->
+  <div class="modal fade" id="booknowModalCenter" tabindex="-1" role="dialog" aria-labelledby="booknowModalCenterTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="booknowModalLongTitle">Select Event</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <div class="form-group">
+                        <label for="reserve">Select Event:</label>
+                        <select class="form-control" id="reserveForEventId">
+                            {% for event in lastTenEvents%}
+                            <option value="{{event.id}}">{{event.name}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>You have to select at least one time slot!</label>
+                        <label>last 10 events are displayed</label>
+                        
+                    </div>
+                    
+                
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+              <button type="button" class="btn btn-primary" id="btn_Reserve">Book Now!</button>
+            </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+
+{% endblock %}

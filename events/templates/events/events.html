@@ -1,0 +1,87 @@
+{% extends "events/base.html" %}
+
+{% block content%}
+
+<script>
+
+    $( document ).ready(function() {
+        $("#lol").click(function () {
+            //alert("loooolool");
+
+            jQuery.ajax({
+                url: '{% url "index" %}'
+                /* ,data: {
+                    'username': username
+                }*/
+                , dataType: 'json'
+                , success: function (data) {
+                    venueArray = JSON.parse(data)
+                    //if (data.is_taken) {
+                        alert("A user with this username already exists.");
+                    //}
+                    
+                }
+            });
+
+        });
+    });
+  </script>
+
+<div class="container">
+  <div class="row">
+    <div class="col-lg-12">
+        <h4>Events</h4>
+         Filter by Category: 
+        <!-- -->
+        <form action="{% url 'filterEvents' %}" method="GET" class="form-inline" onchange="submit();">
+            
+        {% for category in categories %}
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="category" id="{{category}}{{category.id}}" value="{{category.id}}"  {% if category.id  == catSelected %} checked="checked" {% endif %} />
+            <label class="form-check-label" for="inlineRadio1">{{category}}</label>
+        </div>
+        {% endfor %}
+        </form>
+
+        <!-- -->
+            
+        {% for event in loctimedates|dictsort:"day"  %}
+        {% ifchanged event.day%}<hr/>{% endifchanged %}
+        <div class="row row-striped">
+            
+			<div class="col-2 text-right">
+                {% ifchanged %}
+                <h1 class="display-4"><span class="badge badge-secondary">{{ event.day|date:"d" }}</span></h1>
+                <h2>{{ event.day|date:"M" }}</h2>
+                {% endifchanged %}
+            </div>
+            
+			<div class="col-10">  
+                {% ifchanged event.day %}<h3 class="text-uppercase"><strong><a href="{% url 'attendees' event.event.id %}">{{ event.event }}</a></strong></h3>
+                <ul class="list-inline">
+                    <li class="list-inline-item"><i class="fa fa-calendar-o" aria-hidden="true"></i> {{ event.day|date:"l" }}, {{event.day}}</li>
+                    <li class="list-inline-item"><i class="fa fa-bullhorn" aria-hidden="true"></i> Organizer: {{ event.event.organizer }}</li>
+                    <li class="list-inline-item"><i class="fa fa-tag" aria-hidden="true"></i> {{ event.event.category }}</li>
+                    <li class="list-inline-item"><i class="fa fa-user" aria-hidden="true"></i> created by: {{ event.event.user }}</li>
+                </ul>
+                <p>{{ event.event.details }}.</p>
+                {% endifchanged %}
+				<ul class="list-inline">
+                    <li class="list-inline-item"><i class="fa fa-clock-o" aria-hidden="true"></i> {{ event.start_time|time:"h:i a" }} - {{ event.end_time|time:"h:i a" }}</li>
+                    <li class="list-inline-item"><i class="fa fa-location-arrow" aria-hidden="true"></i> {{ event.location }}</li>  
+				</ul>
+				
+			</div>
+        </div>
+        {% empty %}
+        <strong>No events in this category</strong>
+        {% endfor %}
+        <hr/>
+		
+    </div>
+  </div>
+</div>
+
+
+
+{% endblock %}

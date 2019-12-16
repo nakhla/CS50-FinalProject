@@ -1,0 +1,320 @@
+{% extends "events/base.html" %}
+
+{% block content%}
+
+<script>
+$(document).ready(function () {
+
+        $("#attendeeForm").unbind('keyup').keyup(function(e) {
+            //var key = e.which;
+            var key = e.which||e.keyCode;
+            let enterPressed
+            if (key == 13 && enterPressed == false) {
+                // As ASCII code for ENTER key is "13"
+                
+
+                document.querySelector("#btn_addAttendee").click()
+                //$('#btn_addAttendee').click();
+            }
+        });
+
+    $("#attendeeForm").submit(function (e) {
+            //alert("loooolool");
+            //e.preventDefault();
+            jQuery.ajax({
+                url: '{% url "addAttendee" %}'
+                , data: {
+                    'event_id': $("#inp_event_id").val(),
+                    'first_name': $("#inp_first_name").val(),
+                    'last_name': $("#inp_last_name").val(),
+                    'nid': $("#inp_nid").val(),
+                    'email': $("#inp_email").val(),
+                    'mobile': $("#inp_mobile").val(),
+                }
+                , type : "GET"
+                , dataType: 'json'
+                , success: function (addedAttendeeSerialized) {
+                    let addedAttendee = JSON.parse(addedAttendeeSerialized)[0].fields;
+                    let Attendee = JSON.parse(addedAttendeeSerialized)[0];
+                    $("#table-data").append("<tr id=\"tr_del_att_" + Attendee.pk + "\">" 
+                        + "<td><a href=\"\" class=\"link_nid\" attendeeId='" + Attendee.pk + "' data-toggle=\"modal\" data-target=\"#exampleModalCenter\" onclick=\"editAttendee(this); return false; \">" + addedAttendee.nid  + "</a></td>"
+                        + "<td>" + addedAttendee.first_name + "</td><td>" + addedAttendee.last_name  + "</td><td>" + addedAttendee.email  + "</td><td>" + addedAttendee.mobile  
+                        + "</td><td><input type='button' id=\"btn_del_att_" + Attendee.pk + "\" attendeeId=" + Attendee.pk  + " class=\"btnDel btn btn-md btn-danger \"  value=\"Delete\" onclick=\"deleteAttendeeFromEvent(this); return false;\"></td><tr>"); 
+                    $("input[type=text]").val('');
+                    $("input[type=email]").val('');
+                    $('#inp_nid').focus();
+
+                }
+                , error(errorDetails, errorText){
+                    alert(errorDetails.responseText);
+                }
+            });
+            return false;
+        });
+
+    $('#inp_nid').focusout(function() {
+        //var key = e.which;
+        //if (key == 13) {
+        // As ASCII code for ENTER key is "13"
+        //alert($('#inp_nid').val())
+        //}
+        if ($('#inp_nid').val()!="") {
+
+            jQuery.ajax({
+            url: '{% url "checkifAttExists" %}'
+            , data: {
+                'nid': $("#inp_nid").val(),
+                'event_id': $("#inp_event_id").val(),
+            }
+            , type: "GET"
+            , dataType: "json"
+            , success: function(data) {
+                if(data.ErrorMSG != undefined && data.ErrorMSG != '' ){
+                    alert(data.ErrorMSG );
+                }else if (data.NewAttendee != undefined  ){
+                    
+                }else{
+                    let retrievedAttendee = JSON.parse(data)[0].fields
+                    //alert(retrievedAttendee.email)
+                    $("#inp_first_name").val(retrievedAttendee.first_name)
+                    $("#inp_last_name").val(retrievedAttendee.last_name)
+                    $("#inp_email").val(retrievedAttendee.email)
+                    $("#inp_mobile").val(retrievedAttendee.mobile)
+                }
+            }
+            , error(errorDetails, errorText){
+                alert(errorDetails.responseText);
+            }
+        })
+        return false;
+
+        }
+        
+    });
+
+    $('.btnDel').click(function(){
+        deleteAttendeeFromEvent(this);
+        return false;
+    });
+
+    $('.link_nid').click(function(){
+        editAttendee(this);
+        return false;
+    });
+    
+
+});
+
+
+function deleteAttendeeFromEvent(btn_Delete){
+    let attendeeId = $(btn_Delete).attr('attendeeId');
+    jQuery.ajax({
+            url: '{% url "delAttendee" %}'
+            , data: {
+                'attendee_id': attendeeId,
+                'event_id': $("#inp_event_id").val(),
+            }
+            , dataType: 'json'
+            , success: function(data){
+                if (data.Deleted != undefined  ){
+
+                    $('#tr_del_att_' + attendeeId ).children('td, th').animate({
+                        padding: 0
+                    }).wrapInner('<div />')
+                    .children()
+                    .slideUp(function () {
+                    $('#tr_del_att_' + attendeeId ).remove();
+                });
+                    
+                    //$('#tr_del_att_' + attendeeId ).remove();
+                }
+
+            }
+            , error(errorDetails, errorText){
+            alert(errorDetails.responseText);
+        }
+
+    });
+ 
+}
+
+function editAttendee(link_nid){
+    let attendeeId = $(link_nid).attr('attendeeId');
+        jQuery.ajax({
+            url: '{% url "editAttendee" %}'
+            , data: {
+                'attendee_id': attendeeId,
+            }
+            , dataType: 'json'
+            , success: function(attendeeSerialized){
+                let attendee = JSON.parse(attendeeSerialized)[0].fields;
+
+                $("#inp_edit_attendeeid").val(attendeeId)
+                $("#inp_edit_nid").val(attendee.nid)
+                $("#inp_edit_first_name").val(attendee.first_name)
+                $("#inp_edit_last_name").val(attendee.last_name)
+                $("#inp_edit_email").val(attendee.email)
+                $("#inp_edit_mobile").val(attendee.mobile)
+                $("#exampleModalCenter").modal();
+
+            }
+            , error(errorDetails, errorText){
+            alert(errorDetails.responseText);
+        }
+
+        })
+}
+
+
+
+  </script>
+
+<div class="container">
+  <div class="row">
+    <div class="col-lg-12">
+            <div class="row row-striped">
+                    <!--<div class="col-2 text-right">
+                        <h1 class="display-4"><span class="badge badge-secondary">{{event.eventLocDates.first.day|date:"d"}}</span></h1>
+                        <h2>{{event.eventLocDates.first.day|date:"M"}}</h2>
+                    </div>-->
+                    <div class="col-10">
+                        <h3 class="text-uppercase"><strong>{{event.name}}</strong></h3>
+                        <ul class="list-inline">
+                            <!--<li class="list-inline-item"><i class="fa fa-calendar-o" aria-hidden="true"></i>
+                                {% if event.eventLocDates.first.day < event.eventLocDates.last.day %} {{event.eventLocDates.first.day}} to {{event.eventLocDates.last.day}}
+                                {% elif event.eventLocDates.first.day > event.eventLocDates.last.day %} {{event.eventLocDates.last.day}} to {{event.eventLocDates.first.day}}
+                                {% elif event.eventLocDates.first.day == event.eventLocDates.last.day %} {{event.eventLocDates.first.day}}
+                                {% endif %}
+
+                            </li>-->
+                            <li class="list-inline-item"><i class="fa fa-bullhorn" aria-hidden="true"></i> Organizer: {{ event.organizer }}</li>
+                            <li class="list-inline-item"><i class="fa fa-tag" aria-hidden="true"></i> {{ event.category }}</li>
+                            <li class="list-inline-item"><i class="fa fa-user" aria-hidden="true"></i> created by: {{ event.user }}</li>
+                        </ul>
+                        <p>{{ event.details }}</p>
+                        <ul class="list-inline">
+                            {% for event in event.eventLocDates.all|dictsort:"day" %}
+                            <li class="list-inline-item"><i class="fa fa-calendar-o" aria-hidden="true"></i> {{event.day}}</li>
+                            <li class="list-inline-item"><i class="fa fa-clock-o" aria-hidden="true"></i> {{ event.start_time|time:"h:i a" }} - {{ event.end_time|time:"h:i a" }}</li>
+                            <li class="list-inline-item"><i class="fa fa-location-arrow" aria-hidden="true"></i> {{event.location}}</li> 
+                            <br>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+        <form id="attendeeForm" action="" role="form">
+                
+        <div class="table-responsive">
+            <table class="table table-bordered table-list-search">
+                <!-- <h1>{{event.name}}</h1> -->
+                <div class="d-flex justify-content-between">
+                        <div class="p-2 bd-highlight">
+                            <a href="{% url 'export_attendees_to_xlsx' event.id %}" class="btn btn-primary">Export list to xlsx</a>
+                        </div>
+                        <div class="p-2 bd-highlight">
+                            <form action="#" method="get">
+                                <div class="input-group">
+                                    <!-- USE TWITTER TYPEAHEAD JSON WITH API TO SEARCH -->
+                                    <input class="form-control" id="system-search" name="q" placeholder="Search for attendees">
+                                    
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                <thead class="thead-light">
+                        <tr class="text-center">
+                            <th>National ID</th>
+                            <th>First Name</th>
+                            <th>Last Name</th>
+                            <th>Email</th>
+                            <th>Mobile No.</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attendee in attendees %}
+                        <tr id="tr_del_att_{{attendee.id}}">
+                            <td><a href="" class="link_nid" attendeeId='{{attendee.id}}' data-toggle="modal" data-target="#exampleModalCenter">{{attendee.nid}}</a></td>
+                            <td>{{attendee.first_name}}</td>
+                            <td>{{attendee.last_name}}</td>
+                            <td>{{attendee.email}}</td>
+                            <td>{{attendee.mobile}}</td>
+                            <td><input type="button" id="btn_del_att_{{attendee.id}}" attendeeId='{{attendee.id}}' class="btnDel btn btn-md btn-danger "  value="Delete"></td>
+        
+                        </tr>
+                        {% endfor%}   
+                    </tbody>
+                    <tbody id="table-data">
+
+                    </tbody>
+                    <tbody>
+                        <tr>
+                            <input type="hidden" name="event_id" id="inp_event_id" value="{{event.id}}">
+                            <td><input type="text" name="nid"  id="inp_nid" class="form-control" minlength="14" maxlength="14" required></td>
+                            <td><input type="text" name="first_name" id="inp_first_name" class="form-control" required></td>
+                            <td><input type="text" name="last_name" id="inp_last_name" class="form-control" required></td>
+                            <td><input type="email" name="email" id="inp_email" class="form-control" required></td>
+                            <td><input type="text" name="mobile" id="inp_mobile" class="form-control" minlength="11" maxlength="11" required></td>
+                            <td><input type="submit" class="btn btn-primary btn-lg" id="btn_addAttendee" value="Add"></td>
+                            
+                        </tr>                         
+                    </tbody>
+            </table>
+            
+        </div>
+        </form>
+        
+  
+  <!-- Modal -->
+  <div class="modal fade" id="exampleModalCenter" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exampleModalLongTitle">Edit Attendee</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+            <form id="editAttendeeForm" action="{% url 'updateAttendee' %}" method="post" role="form">
+                {% csrf_token %}
+                <div class="form-group">
+                  <input type="hidden" name="edit_attendeeid"  id="inp_edit_attendeeid" class="form-control" required>
+                  <input type="hidden" name="edit_event_id" id="inp_edit_event_id" value="{{event.id}}">
+                  <label for="recipient-name" class="col-form-label">National ID:</label>
+                  <input type="text" name="edit_nid"  id="inp_edit_nid" class="form-control" required>
+                </div>
+                <div class="form-group">
+                  <label for="message-text" class="col-form-label">First Name:</label>
+                  <input type="text" name="edit_first_name" id="inp_edit_first_name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="message-text" class="col-form-label">Last Name:</label>
+                    <input type="text" name="edit_last_name" id="inp_edit_last_name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="message-text" class="col-form-label">Email:</label>
+                    <input type="email" name="edit_email" id="inp_edit_email" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="message-text" class="col-form-label">Mobile:</label>
+                    <input type="text" name="edit_mobile" id="inp_edit_mobile" class="form-control" required>
+                </div>
+            
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+          <input type="submit" class="btn btn-primary" id="btn_updateAttendee" value="Apply changes">
+        </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    </div>
+  </div>
+</div>
+
+
+
+{% endblock %}
